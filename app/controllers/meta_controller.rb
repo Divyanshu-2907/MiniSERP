@@ -6,7 +6,7 @@ class MetaController < ApplicationController
     render json: {
       service: "miniserp",
       status: "ok",
-      documentation: "https://github.com/your-handle/miniserp#readme",
+      documentation: "https://github.com/Divyanshu-2907/MiniSERP#readme",
       auth: { header: ApiKeyAuthentication::HEADER },
       endpoints: {
         search: "/search?q={query}&engine=google",
