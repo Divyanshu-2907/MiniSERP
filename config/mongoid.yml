@@ -1,0 +1,36 @@
+# Mongoid configuration.
+#
+# MONGODB_URI wins when set (Atlas, docker-compose, CI, Heroku add-ons, ...).
+# Otherwise we fall back to a local mongod on the default port.
+development:
+  clients:
+    default:
+      uri: <%= ENV.fetch("MONGODB_URI", "mongodb://localhost:27017/miniserp_development") %>
+      options:
+        server_selection_timeout: 5
+        connect_timeout: 5
+  options:
+    raise_not_found_error: false
+
+test:
+  clients:
+    default:
+      uri: <%= ENV.fetch("MONGODB_URI_TEST", "mongodb://localhost:27017/miniserp_test") %>
+      options:
+        server_selection_timeout: 5
+        connect_timeout: 5
+        read:
+          mode: :primary
+  options:
+    raise_not_found_error: false
+
+production:
+  clients:
+    default:
+      uri: <%= ENV.fetch("MONGODB_URI", "mongodb://localhost:27017/miniserp_production") %>
+      options:
+        server_selection_timeout: 5
+        max_pool_size: 20
+  options:
+    raise_not_found_error: false
+    log_level: :warn
