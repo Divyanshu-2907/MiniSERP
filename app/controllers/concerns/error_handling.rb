@@ -6,9 +6,13 @@ module ErrorHandling
   extend ActiveSupport::Concern
 
   included do
-    rescue_from Scraper::Errors::Base, with: :render_scraper_error
+    # ORDER MATTERS. Rails matches rescue_from handlers in *reverse*
+    # registration order -- the last matching handler registered wins. So the
+    # broadest handler must be registered FIRST, or it swallows every specific
+    # handler declared after it and turns deliberate 400/403s into 500s.
+    rescue_from StandardError, with: :render_unexpected_error
     rescue_from ActionController::ParameterMissing, with: :render_parameter_missing
-    rescue_from StandardError, with: :render_unexpected_error unless Rails.env.local?
+    rescue_from Scraper::Errors::Base, with: :render_scraper_error
   end
 
   private
@@ -25,7 +29,12 @@ module ErrorHandling
            status: :bad_request
   end
 
+  # Registered in every environment -- so dev, test and production all exercise
+  # the same handler chain -- but re-raised locally to keep full backtraces in
+  # development and to let specs fail loudly on unexpected errors.
   def render_unexpected_error(error)
+    raise error if Rails.env.local?
+
     logger.error("[api] unhandled #{error.class}: #{error.message}")
     logger.error(error.backtrace&.first(10)&.join("\n"))
 
