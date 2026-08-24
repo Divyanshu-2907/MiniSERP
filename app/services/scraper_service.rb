@@ -17,6 +17,17 @@ class ScraperService
     def cached?    = !!cached
   end
 
+  # Errors that mean "the cache is unavailable" rather than "the request is
+  # broken". Mongo::Auth::Unauthorized is listed explicitly because it does NOT
+  # descend from Mongo::Error -- it inherits from Mongo::Error::AuthError,
+  # which is merely namespaced under it. Rescuing Mongo::Error alone lets a
+  # credentials problem escape as a 500 on every search.
+  CACHE_ERRORS = [
+    Mongo::Error,
+    Mongo::Error::AuthError,
+    Mongoid::Errors::MongoidError
+  ].freeze
+
   def self.call(**kwargs) = new(**kwargs).call
 
   def initialize(query:, engine: nil, refresh: false, client: nil, ttl_hours: nil, limit: nil, logger: nil)
@@ -48,7 +59,7 @@ class ScraperService
 
   def cached_result
     SearchResult.fresh(query: @query, engine: @engine.key, ttl_hours: @ttl_hours)
-  rescue Mongo::Error => e
+  rescue *CACHE_ERRORS => e
     # A cache that is down should slow us down, not take the API with it.
     @logger&.error("[scraper] cache read failed: #{e.class}: #{e.message}")
     nil
@@ -102,7 +113,7 @@ class ScraperService
       results: results.map { |row| row.transform_keys(&:to_s) },
       scraped_at: scraped_at
     )
-  rescue Mongo::Error, Mongoid::Errors::MongoidError => e
+  rescue *CACHE_ERRORS => e
     @logger&.error("[scraper] cache write failed: #{e.class}: #{e.message}")
   end
 
