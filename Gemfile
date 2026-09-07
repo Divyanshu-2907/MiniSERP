@@ -28,6 +28,6 @@ group :development, :test do
   gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
   gem "rspec-rails", "~> 8.0"
   gem "rack-test", require: "rack/test"
-  gem "webmock", "~> 3.23"
+  gem "webmock", "~> 3.26"
   gem "rubocop-rails-omakase", require: false
 end
