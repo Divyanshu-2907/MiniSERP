@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MiniSERP — search results as JSON</title>
+<meta name="description" content="A Rails 8 API that turns search-engine result pages into clean, structured JSON. Live demo.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --bg:#F4F5F7; --surface:#FFF; --surface-2:#EBECF1; --line:#DBDCE4; --line-soft:#E7E8EE;
+    --text:#191A21; --text-mid:#4B4C58; --muted:#6F707E;
+    --accent:#0C6F79; --accent-2:#0A555D; --accent-bg:#E1F0F1;
+    --ok:#1F6B4C; --ok-bg:#E2F0EA;
+    --warn:#8A5B0A; --warn-bg:#F7EDDA;
+    --crit:#A32436; --crit-bg:#F8E7EA;
+    --shadow:0 1px 2px rgba(20,20,32,.05), 0 6px 20px rgba(20,20,32,.05);
+    --sans:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:#121218; --surface:#1A1A22; --surface-2:#22222C; --line:#31313E; --line-soft:#282832;
+      --text:#ECECF2; --text-mid:#B8B7C5; --muted:#8F8E9F;
+      --accent:#45B6C1; --accent-2:#6FCFD8; --accent-bg:#13333A;
+      --ok:#62C598; --ok-bg:#153229;
+      --warn:#E0AE55; --warn-bg:#352915;
+      --crit:#F0808F; --crit-bg:#391A21;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 6px 22px rgba(0,0,0,.3);
+    }
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; padding:0 20px 80px; background:var(--bg); color:var(--text);
+    font-family:var(--sans); font-size:16px; line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:860px; margin:0 auto; }
+
+  header { padding:44px 0 28px; }
+  .brandrow { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+  h1 { font-size:1.75rem; font-weight:700; letter-spacing:-.02em; margin:0; }
+  h1 span { color:var(--accent); }
+  .pill {
+    font-family:var(--mono); font-size:11px; font-weight:500; letter-spacing:.06em;
+    text-transform:uppercase; padding:4px 9px; border-radius:2px;
+    background:var(--ok-bg); color:var(--ok); display:inline-flex; align-items:center; gap:6px;
+  }
+  .pill .dot { width:6px; height:6px; border-radius:50%; background:currentColor; }
+  .lede { font-size:1.06rem; color:var(--text-mid); margin:0 0 18px; max-width:64ch; }
+  .lede b { color:var(--text); font-weight:600; }
+  .links { display:flex; gap:10px; flex-wrap:wrap; }
+  .links a {
+    font-family:var(--mono); font-size:12.5px; text-decoration:none; color:var(--text);
+    background:var(--surface); border:1px solid var(--line); border-radius:2px; padding:7px 12px;
+    transition:border-color .15s,color .15s;
+  }
+  .links a:hover, .links a:focus-visible { border-color:var(--accent); color:var(--accent); }
+
+  /* ---- search ---- */
+  .console {
+    background:var(--surface); border:1px solid var(--line); box-shadow:var(--shadow);
+    padding:22px; margin-bottom:14px;
+  }
+  form { display:flex; gap:10px; margin-bottom:14px; }
+  input[type=search] {
+    flex:1 1 auto; min-width:0; font-family:var(--sans); font-size:1rem; color:var(--text);
+    background:var(--bg); border:1px solid var(--line); border-radius:2px; padding:12px 14px;
+  }
+  input[type=search]:focus { outline:2px solid var(--accent); outline-offset:-1px; border-color:transparent; }
+  button {
+    font-family:var(--sans); font-size:.95rem; font-weight:600; cursor:pointer;
+    background:var(--accent); color:#fff; border:none; border-radius:2px; padding:12px 22px;
+    transition:background .15s;
+  }
+  :root:not([data-theme="light"]) button { color:#0A2226; }
+  @media (prefers-color-scheme: light) { button { color:#fff; } }
+  button:hover { background:var(--accent-2); }
+  button[disabled] { opacity:.55; cursor:not-allowed; }
+
+  .presets { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .presets .label {
+    font-family:var(--mono); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--muted); margin-right:2px;
+  }
+  .chip {
+    font-family:var(--mono); font-size:12px; cursor:pointer; color:var(--text-mid);
+    background:var(--surface-2); border:1px solid transparent; border-radius:2px; padding:5px 10px;
+    transition:color .15s, border-color .15s;
+  }
+  .chip:hover, .chip:focus-visible { color:var(--accent); border-color:var(--accent); }
+  .chip b { color:var(--muted); font-weight:400; }
+
+  /* ---- meta strip ---- */
+  .meta { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+  .badge {
+    font-family:var(--mono); font-size:11.5px; padding:5px 10px; border-radius:2px;
+    background:var(--surface-2); color:var(--text-mid);
+  }
+  .badge.hit  { background:var(--ok-bg);   color:var(--ok);   font-weight:500; }
+  .badge.miss { background:var(--accent-bg); color:var(--accent-2); font-weight:500; }
+  .badge.code { font-weight:600; }
+  .badge.c2 { background:var(--ok-bg); color:var(--ok); }
+  .badge.c4 { background:var(--warn-bg); color:var(--warn); }
+  .badge.c5 { background:var(--crit-bg); color:var(--crit); }
+
+  /* ---- results ---- */
+  .result {
+    background:var(--surface); border:1px solid var(--line); padding:16px 18px; margin-bottom:10px;
+    display:grid; grid-template-columns:34px 1fr; gap:14px; align-items:start;
+  }
+  .pos {
+    font-family:var(--mono); font-size:13px; font-weight:600; color:var(--accent);
+    background:var(--accent-bg); border-radius:2px; text-align:center; padding:4px 0;
+  }
+  .result h3 { font-size:1.02rem; font-weight:600; margin:0 0 3px; line-height:1.35; }
+  .result a { color:var(--accent-2); text-decoration:none; word-break:break-word; }
+  .result a:hover { text-decoration:underline; }
+  .result .url { font-family:var(--mono); font-size:12px; color:var(--ok); margin-bottom:6px; word-break:break-all; }
+  .result p { margin:0; font-size:.93rem; color:var(--text-mid); }
+
+  .notice { padding:18px; border-radius:2px; margin-bottom:12px; }
+  .notice h3 { margin:0 0 6px; font-size:1.02rem; }
+  .notice p { margin:0; font-size:.95rem; }
+  .notice.good { background:var(--ok-bg); color:var(--ok); }
+  .notice.warn { background:var(--warn-bg); color:var(--warn); }
+  .notice.bad  { background:var(--crit-bg); color:var(--crit); }
+  .notice code { background:rgba(127,127,127,.18); padding:1px 5px; border-radius:2px; font-family:var(--mono); font-size:.85em; }
+
+  .hint {
+    font-size:.9rem; color:var(--muted); margin:12px 0 0;
+    padding-left:12px; border-left:2px solid var(--line);
+  }
+
+  details { margin-top:14px; }
+  summary {
+    font-family:var(--mono); font-size:12px; color:var(--muted); cursor:pointer;
+    padding:6px 0; user-select:none;
+  }
+  summary:hover { color:var(--accent); }
+  pre {
+    font-family:var(--mono); font-size:12.5px; line-height:1.55; margin:8px 0 0;
+    background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--accent);
+    padding:14px; overflow-x:auto; color:var(--text-mid);
+  }
+
+  .skeleton { height:74px; background:var(--surface); border:1px solid var(--line); margin-bottom:10px;
+    background-image:linear-gradient(90deg,transparent,rgba(127,127,127,.09),transparent);
+    background-size:200% 100%; animation:sweep 1.2s infinite; }
+  @keyframes sweep { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+  /* ---- lower sections ---- */
+  section { margin-top:44px; }
+  h2 { font-size:1.2rem; font-weight:700; letter-spacing:-.015em; margin:0 0 4px; }
+  .sub {
+    font-family:var(--mono); font-size:11.5px; letter-spacing:.05em; text-transform:uppercase;
+    color:var(--muted); margin:0 0 18px; padding-bottom:12px; border-bottom:1px solid var(--line);
+  }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; }
+  .card { background:var(--surface); border:1px solid var(--line); padding:18px; }
+  .card h3 { margin:0 0 7px; font-size:.98rem; font-weight:600; display:flex; align-items:center; gap:8px; }
+  .card h3::before { content:""; width:6px; height:6px; background:var(--accent); flex:none; }
+  .card p { margin:0; font-size:.9rem; color:var(--text-mid); }
+
+  .scroll { overflow-x:auto; }
+  table { border-collapse:collapse; width:100%; font-size:.9rem; }
+  th, td { text-align:left; padding:8px 14px 8px 0; border-bottom:1px solid var(--line-soft); vertical-align:top; }
+  th { font-family:var(--mono); font-size:10.5px; letter-spacing:.07em; text-transform:uppercase;
+       color:var(--muted); border-bottom-color:var(--line); white-space:nowrap; font-weight:500; }
+  td:first-child, td:nth-child(2) { font-family:var(--mono); font-size:.83rem; white-space:nowrap; }
+  .s2 { color:var(--ok); font-weight:600; }
+  .s4 { color:var(--warn); font-weight:600; }
+  .s5 { color:var(--crit); font-weight:600; }
+
+  footer {
+    margin-top:52px; padding-top:20px; border-top:1px solid var(--line);
+    font-family:var(--mono); font-size:11.5px; color:var(--muted);
+    display:flex; justify-content:space-between; gap:14px; flex-wrap:wrap;
+  }
+  footer a { color:var(--accent-2); }
+
+  @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
+  @media (max-width:560px) {
+    form { flex-direction:column; }
+    .result { grid-template-columns:1fr; gap:8px; }
+    .pos { width:34px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brandrow">
+      <h1>Mini<span>SERP</span></h1>
+      <span class="pill"><span class="dot"></span>API live</span>
+    </div>
+    <p class="lede">
+      A <b>Ruby on Rails</b> API that turns a search-engine results page into clean, structured
+      JSON — parsed with Nokogiri, cached in MongoDB, with block detection and rate limiting.
+      Type a query below; it calls the same public endpoint any client would.
+    </p>
+    <div class="links">
+      <a href="https://github.com/Divyanshu-2907/MiniSERP">Source on GitHub</a>
+      <a href="https://github.com/Divyanshu-2907/MiniSERP#readme">README &amp; engineering notes</a>
+      <a href="/api/v1">Service JSON</a>
+    </div>
+  </header>
+
+  <div class="console">
+    <form id="f">
+      <input type="search" id="q" value="ruby on rails" placeholder="Search query…" autocomplete="off" aria-label="Search query">
+      <button type="submit" id="go">Search</button>
+    </form>
+    <div class="presets">
+      <span class="label">Try</span>
+      <button type="button" class="chip" data-q="ruby on rails">ruby on rails <b>· 3 results</b></button>
+      <button type="button" class="chip" data-q="nokogiri">nokogiri <b>· fallback selectors</b></button>
+      <button type="button" class="chip" data-q="captcha">captcha <b>· 403 blocked</b></button>
+      <button type="button" class="chip" data-q="zznomatch">zznomatch <b>· empty set</b></button>
+    </div>
+  </div>
+
+  <div id="out" aria-live="polite"></div>
+
+  <section>
+    <h2>What you just called</h2>
+    <p class="sub">One GET request, four layers behind it</p>
+    <div class="cards">
+      <div class="card">
+        <h3>Resilient parsing</h3>
+        <p>Google's result wrapper changed from <code>div.g</code> to <code>div.MjjYud</code>. The parser tries ordered selector strategies, then falls back to pure structure — find each heading, walk up to the nearest linked block — so a class rename doesn't return an empty array.</p>
+      </div>
+      <div class="card">
+        <h3>Cache, not re-scrape</h3>
+        <p>Every result is stored in MongoDB with a TTL. Run the same query twice and the second response comes back <code>cached: true</code> with an age counter, served from the database.</p>
+      </div>
+      <div class="card">
+        <h3>Blocks aren't garbage</h3>
+        <p>When a search engine serves an anti-bot page instead of results, it's detected by content and structure and returned as <code>403 blocked</code> — never as a plausible-looking empty result set.</p>
+      </div>
+      <div class="card">
+        <h3>Offline by design</h3>
+        <p>This demo reads saved HTML fixtures — no live search engine is called. A live HTTP transport with retry and backoff is implemented and tested behind one config value.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>API surface</h2>
+    <p class="sub">Every response uses one envelope</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Request</th><th>Status</th><th>Response</th></tr></thead>
+        <tbody>
+          <tr><td>/search?q=…</td><td class="s2">200</td><td>Results, with <code>cached</code> and <code>scraped_at</code></td></tr>
+          <tr><td>…repeat query</td><td class="s2">200</td><td><code>cached: true</code> — served from MongoDB</td></tr>
+          <tr><td>…no matches</td><td class="s2">200</td><td><code>no_results: true</code>, empty array</td></tr>
+          <tr><td>…anti-bot page</td><td class="s4">403</td><td><code>blocked</code></td></tr>
+          <tr><td>missing q</td><td class="s4">400</td><td><code>invalid_query</code></td></tr>
+          <tr><td>unknown engine</td><td class="s4">400</td><td><code>unsupported_engine</code></td></tr>
+          <tr><td>bad / missing key</td><td class="s4">401</td><td><code>unauthorized</code></td></tr>
+          <tr><td>31st req / minute</td><td class="s5">429</td><td><code>rate_limit_exceeded</code> + <code>Retry-After</code></td></tr>
+          <tr><td>stale selectors</td><td class="s5">502</td><td><code>parse_failed</code> — never a silent empty array</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="hint">
+      Authenticate with an <code>X-API-Key</code> header. This page uses the public key
+      <code>demo-key</code>, rate limited to 30 requests per minute.
+    </p>
+  </section>
+
+  <footer>
+    <span>Rails 8.1 · Ruby 3.3 · Mongoid · Nokogiri · rack-attack · 97 specs</span>
+    <span><a href="https://github.com/Divyanshu-2907/MiniSERP">Divyanshu-2907/MiniSERP</a></span>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var API_KEY = "demo-key";
+  var out = document.getElementById("out");
+  var form = document.getElementById("f");
+  var input = document.getElementById("q");
+  var go = document.getElementById("go");
+  var lastQuery = null;
+  var seen = Object.create(null);
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function codeClass(status) {
+    return status < 300 ? "c2" : status < 500 ? "c4" : "c5";
+  }
+
+  function rawBlock(data) {
+    return '<details><summary>▸ Raw JSON response</summary><pre>' +
+      esc(JSON.stringify(data, null, 2)) + "</pre></details>";
+  }
+
+  function render(status, data, ms, query) {
+    var html = "";
+
+    var badges = '<span class="badge code ' + codeClass(status) + '">HTTP ' + status + "</span>";
+    badges += '<span class="badge">' + Math.round(ms) + " ms</span>";
+
+    if (data && typeof data.cached === "boolean") {
+      badges += data.cached
+        ? '<span class="badge hit">cached · ' + data.cache_age_seconds + "s old</span>"
+        : '<span class="badge miss">fresh scrape</span>';
+      badges += '<span class="badge">' + data.results_count + " results</span>";
+      if (data.scraped_at) badges += '<span class="badge">' + esc(data.scraped_at) + "</span>";
+    }
+    html += '<div class="meta">' + badges + "</div>";
+
+    if (status === 403 && data.error === "blocked") {
+      html += '<div class="notice warn"><h3>Blocked — and reported honestly</h3><p>' +
+        "The engine served an anti-bot page instead of results. Rather than returning parsed " +
+        "garbage or a misleading empty list, the API detects it and responds " +
+        "<code>403 blocked</code>. This is the feature working, not a failure.</p></div>";
+    } else if (status === 429) {
+      html += '<div class="notice warn"><h3>Rate limited</h3><p>' + esc(data.message || "") +
+        " Try again in " + esc(data.retry_after || "a few") + " seconds.</p></div>";
+    } else if (status >= 400) {
+      html += '<div class="notice bad"><h3>' + esc(data.error || "error") + "</h3><p>" +
+        esc(data.message || "") + "</p></div>";
+    } else if (data.no_results) {
+      html += '<div class="notice good"><h3>No matches — a real answer, not an error</h3><p>' +
+        "The engine explicitly said nothing matched, so the API returns <code>200</code> with " +
+        "<code>no_results: true</code> and an empty array. A broken parser returns " +
+        "<code>502 parse_failed</code> instead — the two are never confused.</p></div>";
+    } else {
+      (data.results || []).forEach(function (r) {
+        html += '<div class="result"><div class="pos">' + esc(r.position) + "</div><div>" +
+          "<h3><a href=" + JSON.stringify(r.link) + ' target="_blank" rel="noopener noreferrer">' +
+          esc(r.title) + "</a></h3>" +
+          '<div class="url">' + esc(r.link) + "</div>" +
+          "<p>" + esc(r.snippet) + "</p></div></div>";
+      });
+
+      if (!data.cached && seen[query]) {
+        html += '<p class="hint">Fresh scrape stored in MongoDB. Search it again to see ' +
+          "<code>cached: true</code>.</p>";
+      } else if (!data.cached) {
+        html += '<p class="hint">First time for this query — parsed from HTML and written to ' +
+          "MongoDB. Press Search again to get it back from the cache.</p>";
+      } else {
+        html += '<p class="hint">Served from MongoDB without re-parsing — note the response ' +
+          "time against the fresh scrape above.</p>";
+      }
+    }
+
+    html += rawBlock(data);
+    out.innerHTML = html;
+    seen[query] = true;
+  }
+
+  function loading() {
+    out.innerHTML =
+      '<div class="meta"><span class="badge">requesting…</span></div>' +
+      '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>' +
+      '<p class="hint" id="cold" hidden>Still waking up — this service runs on a free instance ' +
+      "that sleeps after 15 minutes of inactivity. First request can take up to a minute.</p>";
+    setTimeout(function () {
+      var c = document.getElementById("cold");
+      if (c) c.hidden = false;
+    }, 2500);
+  }
+
+  function run(query) {
+    query = (query || "").trim();
+    if (!query) return;
+    lastQuery = query;
+    input.value = query;
+    go.disabled = true;
+    loading();
+
+    var started = performance.now();
+
+    fetch("/search?q=" + encodeURIComponent(query), {
+      headers: { "X-API-Key": API_KEY },
+      cache: "no-store"
+    })
+      .then(function (res) {
+        return res.json().then(function (data) {
+          return { status: res.status, data: data };
+        });
+      })
+      .then(function (r) {
+        render(r.status, r.data, performance.now() - started, query);
+      })
+      .catch(function (err) {
+        out.innerHTML =
+          '<div class="notice bad"><h3>Could not reach the API</h3><p>' +
+          esc(err.message) +
+          ". The instance may still be waking up — try again in a few seconds.</p></div>";
+      })
+      .finally(function () {
+        go.disabled = false;
+      });
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    run(input.value);
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll(".chip"), function (chip) {
+    chip.addEventListener("click", function () {
+      run(chip.getAttribute("data-q"));
+    });
+  });
+
+  run("ruby on rails");
+})();
+</script>
+</body>
+</html>
