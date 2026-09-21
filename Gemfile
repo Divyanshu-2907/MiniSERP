@@ -7,7 +7,7 @@ gem "puma", ">= 5.0"
 
 # --- MiniSERP core dependencies -------------------------------------------
 # MongoDB ODM (this app uses Mongoid instead of Active Record)
-gem "mongoid", "~> 9.0"
+gem "mongoid", "~> 9.1"
 # HTML parsing for the scrapers
 gem "nokogiri", "~> 1.18"
 # HTTP client used by Scraper::Client
