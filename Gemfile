@@ -11,7 +11,7 @@ gem "mongoid", "~> 9.0"
 # HTML parsing for the scrapers
 gem "nokogiri", "~> 1.18"
 # HTTP client used by Scraper::Client
-gem "httparty", "~> 0.22"
+gem "httparty", "~> 0.24"
 # Per-API-key rate limiting
 gem "rack-attack", "~> 6.7"
 # Load ENV vars from .env in development
