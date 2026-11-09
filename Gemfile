@@ -9,7 +9,7 @@ gem "puma", ">= 5.0"
 # MongoDB ODM (this app uses Mongoid instead of Active Record)
 gem "mongoid", "~> 9.0"
 # HTML parsing for the scrapers
-gem "nokogiri", "~> 1.18"
+gem "nokogiri", "~> 1.19"
 # HTTP client used by Scraper::Client
 gem "httparty", "~> 0.22"
 # Per-API-key rate limiting
