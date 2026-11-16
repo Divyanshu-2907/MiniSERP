@@ -26,7 +26,7 @@ gem "bootsnap", require: false
 
 group :development, :test do
   gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
-  gem "rspec-rails", "~> 8.0"
+  gem "rspec-rails", "~> 8.1"
   gem "rack-test", require: "rack/test"
   gem "webmock", "~> 3.23"
   gem "rubocop-rails-omakase", require: false
